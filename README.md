@@ -79,16 +79,8 @@ deliveries_df['batsman_runs'] = deliveries_df['batsman_runs'].astype(int)
 deliveries_df['bowler_runs'] = deliveries_df['bowler_runs'].astype(int)
 deliveries_df['is_wicket'] = deliveries_df['is_wicket'].astype(int)
 
-# total runs per match
-player_runs = deliveries_df.groupby('match_id')['batsman_runs'].sum().reset_index()
-player_runs.columns = ['match_id', 'total_match_runs']
 
-# total wickets per match
-match_wickets = deliveries_df.groupby('match_id')['is_wicket'].sum().reset_index()
-match_wickets.columns = ['match_id', 'total_wickets']
-
-
-#  LOAD +
+#  LOAD Data
 matches_df.to_sql("matches", engine, if_exists="replace", index=False)
 deliveries_df.to_sql("deliveries", engine, if_exists="replace", index=False)
 players_df.to_sql("players", engine, if_exists="replace", index=False)
@@ -97,67 +89,122 @@ match_summary.to_sql("match_summary", engine, if_exists="replace", index=False)
 print("✅ Data Loaded Successfully!")
 
 
-# Create Streamlit Dashboard
+# IPL_ANALYSIS VISUALIZATION
 
-Create file dashboard.py
-
-import streamlit as st
-import pandas as pd
-from sqlalchemy import create_engine
-
-engine = create_engine("mysql+pymysql://root:root@localhost/ipl_project")
-
-st.title("🏏 IPL ANALYSIS DASHBOARD")
-
-dashboard = st.sidebar.selectbox(
-    "Select Dashboard",
-    ["Team Performance", "Match Insights"]
-)
-
-# ---------------- TEAM PERFORMANCE ----------------
-if dashboard == "Team Performance":
-
-    st.header("Team Performance")
-
-    df = pd.read_sql("""
-    SELECT winner, COUNT(*) as wins
-    FROM matches
-    WHERE winner IS NOT NULL
-    GROUP BY winner
-    ORDER BY wins DESC
-    """, engine)
-
-    st.dataframe(df)
-    st.bar_chart(df.set_index("winner"))
-
-# ---------------- MATCH INSIGHTS ----------------
-elif dashboard == "Match Insights":
-
-    st.header("Match Insights")
-
-    runs = pd.read_sql("""
-    SELECT match_id, SUM(batsman_runs) as total_runs
-    FROM deliveries
-    GROUP BY match_id
-    """, engine)
-
-    st.metric("Average Runs Per Match", round(runs["total_runs"].mean(),2))
-
-#  Run Dashboard
-streamlit run dashboard.py
-
-
-Browser will open → Dashboard ready 🎉
-
-# Optional Charts Using Matplotlib
+# total runs per match
 import matplotlib.pyplot as plt
 
-season_runs = pd.read_sql("""
-SELECT season, COUNT(*) as matches
-FROM matches
-GROUP BY season
-""", engine)
+plt.figure()
+plt.hist(player_runs['total_match_runs'], bins=20)
+plt.title("Runs Distribution per Match")
+plt.xlabel("Total Runs in Match")
+plt.ylabel("Number of Matches")
+plt.show()
 
-plt.bar(season_runs['season'], season_runs['matches'])
+<img width="923" height="562" alt="image" src="https://github.com/user-attachments/assets/5f6ba0a3-42e6-45cb-8567-8b684b842d0c" />
+
+
+# total wickets per match
+
+import matplotlib.pyplot as plt
+
+plt.figure()
+plt.bar(match_wickets['match_id'], match_wickets['total_wickets'])
+plt.title("Wickets per Match")
+plt.xlabel("Match ID")
+plt.ylabel("Total Wickets")
+plt.show()
+
+<img width="908" height="670" alt="image" src="https://github.com/user-attachments/assets/6c798e65-3f7f-4a01-afd1-9d6bddbe414a" />
+
+# Season-wise Total Matches Chart
+import matplotlib.pyplot as plt
+season_matches = matches_df.groupby('season').size().reset_index(name='total_matches')
+
+plt.figure()
+plt.bar(season_matches['season'], season_matches['total_matches'])
+plt.title("Season-wise Total Matches")
+plt.xlabel("Season")
+plt.ylabel("Number of Matches")
+plt.show()
+
+<img width="920" height="674" alt="image" src="https://github.com/user-attachments/assets/b90e020f-9008-4947-a0a8-f49a27ab76f4" />
+
+
+# Average Runs Per Season
+if 'season' not in match_summary.columns:
+    match_summary = match_summary.merge(matches_df[['match_id','season']], on='match_id')
+
+avg_runs_season = match_summary.groupby('season')['total_match_runs'].mean().reset_index()
+
+plt.figure()
+plt.bar(avg_runs_season['season'], avg_runs_season['total_match_runs'])
+plt.title("Average Runs Per Season")
+plt.xlabel("Season")
+plt.ylabel("Average Runs")
+plt.show()
+
+<img width="959" height="681" alt="image" src="https://github.com/user-attachments/assets/e9bef1fa-ff2f-4b22-9616-4f79dc7ca7ba" />
+
+# Total Runs Per Season
+import matplotlib.pyplot as plt
+
+ //Merge to get season
+merged_df = deliveries_df.merge(
+    matches_df[['match_id', 'season']],
+    on='match_id'
+)
+
+// Total runs per season
+season_runs = merged_df.groupby('season')['batsman_runs'].sum()
+
+plt.figure(figsize=(8,5))
+plt.plot(season_runs.index, season_runs.values)
+
+plt.title("Total Runs Per Season")
+plt.xlabel("Season")
+plt.ylabel("Total Runs")
+plt.show()
+
+<img width="1031" height="656" alt="image" src="https://github.com/user-attachments/assets/58eb6d69-b37d-41d6-b2c8-4590d9ec90d9" />
+
+
+
+# Top 5 Teams by Win Percentage
+
+win_percentage = (total_wins / total_matches * 100).reset_index()
+win_percentage.columns = ['team', 'win_percentage']
+
+top5 = win_percentage.sort_values(by='win_percentage', ascending=False).head()
+
+plt.figure()
+plt.bar(top5['team'], top5['win_percentage'])
+plt.xticks(rotation=45)
+plt.title("Top 5 Teams by Win Percentage")
+plt.ylabel("Win Percentage")
+plt.xlabel("Teams")
+plt.show()
+
+<img width="858" height="640" alt="image" src="https://github.com/user-attachments/assets/4807977a-c5c5-4c8c-ba22-ecb4e2fe8926" />
+
+
+
+# High Scoring Matches (>180 runs)
+
+high_score = match_summary[match_summary['total_match_runs'] > 180]
+
+plt.figure()
+plt.bar(high_score['match_id'], high_score['total_match_runs'])
+plt.title("High Scoring Matches (>180 Runs)")
+plt.xlabel("Match ID")
+plt.ylabel("Total Runs")
+plt.show()
+
+
+<img width="892" height="653" alt="image" src="https://github.com/user-attachments/assets/90fa6110-3d97-4167-9f70-0fa49da79a77" />
+
+
+
+
 plt.title("Matches per Season")
 plt.show()
