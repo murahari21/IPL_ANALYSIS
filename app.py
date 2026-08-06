@@ -3,10 +3,8 @@
 
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
-
-# ---------------- DATABASE CONNECTION ----------------
-engine = create_engine("mysql+pymysql://root:root@localhost/ipl_project")
+matches = pd.read_csv("matches.csv")
+deliveries = pd.read_csv("deliveries.csv")
 
 # ---------------- PAGE TITLE ----------------
 st.title("🏏 IPL ANALYSIS DASHBOARD")
